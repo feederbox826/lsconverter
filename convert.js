@@ -18,6 +18,7 @@ const jsdom = require('jsdom')
 const dom = new jsdom.JSDOM("")
 const $ = require('jquery')(dom.window)
 const fs = require('fs')
+const crypto = require("crypto")
 
 const fileReader = fs.readFileSync('./game.xml', 'utf8')
 const xmlString = fileReader.toString()
@@ -66,6 +67,23 @@ const parsed = convert(xmlString);
 const gameId = 85500
 const fakeURL = (path) => `http://localhost:9999/custom/serve/games/${gameId}/images/${path}`
 const findId = (id) => parsed.find(page => page.id === id)
+const randomActionID = () => "aid"+crypto.randomBytes(4).toString("hex")
+
+const mapAction = (bidElem, i) => ({
+  id: randomActionID(),
+  photo: {
+    content: fakeURL(bidElem["aphoto" + i])+".jpg"
+  },
+  video: {
+    resolved_content: fakeURL(findId(bidElem["aid" + i]).video)
+  }
+})
+
+const mapChoice = (page, i) => ({
+  id: page["id" + i],
+  description: page["ctext" + i],
+  photo: fakeURL(page["photo" + i])+".jpg",
+})
 
 for (let i = 0; i < parsed.length; i++) {
   const page = parsed[i];
@@ -80,12 +98,7 @@ for (let i = 0; i < parsed.length; i++) {
   }
   // choices
   for (let w = 1; w < page.wcount; w++) {
-      const choice = {
-        id: page["id" + w],
-        description: page["ctext" + w],
-        photo: fakeURL(page["photo" + w])+".jpg",
-      }
-      basePage.choices.push(choice)
+    basePage.choices.push(mapChoice(page, w))
   }
   // clean choices - if both are identical, remove one
   if (basePage.choices.length === 2) {
@@ -97,8 +110,9 @@ for (let i = 0; i < parsed.length; i++) {
   // add on to first fragment
   for (let b = 1; b <= page.wcountb; b++) {
     const bidElem = findId(page["bid" + b])
+    const fragid = "frag"+page["bid" + b]
     const fragment = {
-      id: page["bid" + b],
+      id: fragid,
       photo: {
         content: fakeURL(page["bphoto" + b])+".jpg"
       },
@@ -108,41 +122,23 @@ for (let i = 0; i < parsed.length; i++) {
       actions: []
     }
     // if bid !== curid, fetch actions
-    if (page.id !== page["bid" + b]) {
+    if ("frag"+page.id !== fragid) {
       for (let a = 1; a <= bidElem.wcounta; a++) {
-        const action = {
-          id: bidElem["aid" + a],
-          photo: {
-            content: fakeURL(bidElem["aphoto" + a])+".jpg"
-          },
-          video: {
-            resolved_content: fakeURL(findId(bidElem["aid" + a]).video)
-          }
-        }
-        fragment.actions.push(action)
+        fragment.actions.push(mapAction(bidElem, a))
       }
     }
     basePage.fragments.push(fragment)
   }
   // aid - actions
   for (let a = 1; a <= page.wcounta; a++) {
-    const action = {
-      id: page["aid" + a],
-      photo: {
-        content: fakeURL(page["aphoto" + a])+".jpg"
-      },
-      video: {
-        resolved_content: fakeURL(findId(page["aid" + a]).video)
-      }
-    }
     // add to first fragment
-    basePage.fragments[0].actions.push(action)
+    basePage.fragments[0].actions.push(mapAction(page, a))
   }
   // clean fragments if dne
   if (basePage.fragments.length === 0) {
     delete basePage.fragments
   }
-  
+
   // write to file
   fs.writeFileSync(`./serve/games/85500/choices/${basePage.id}.json`, JSON.stringify(basePage, null, 2))
 }
