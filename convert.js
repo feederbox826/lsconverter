@@ -137,6 +137,8 @@ for (let i = 0; i < parsed.length; i++) {
   // clean fragments if dne
   if (basePage.fragments.length === 0) {
     delete basePage.fragments
+  } else { // if has fragments, set resource id to be empty
+    delete basePage.resource.resolved_content
   }
 
   // write to file
